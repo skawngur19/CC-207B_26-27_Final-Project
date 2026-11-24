@@ -1,0 +1,23 @@
+# Flutter / Dart
+build/
+.dart_tool/
+.pub-cache/
+.flutter-plugins-dependencies
+.idea/
+.vscode/
+
+# Firebase
+firebase-debug.log
+.firebase/
+
+# Node
+node_modules/
+
+# Secrets
+.env
+service-account*.json
+
+# Windows build output (share these as a GitHub Release instead)
+*.exe
+*.dll
+*.log
