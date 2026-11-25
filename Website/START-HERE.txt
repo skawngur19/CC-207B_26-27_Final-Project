@@ -1,0 +1,15 @@
+CLINCH STUDY HUB - LOCAL WEBSITE DEMO
+
+1. Right-click Clinch-Local-Demo.zip and choose Extract All.
+2. Open the extracted folder and double-click index.html.
+3. Choose Customer, Employee, or Owner. Use 1234 in both email and password.
+
+No server, Node.js, Flutter, installation, or Internet connection is needed.
+Use Microsoft Edge or Google Chrome with JavaScript enabled.
+
+The demo includes reservations, recruitment, cash checkout, and owner staff controls.
+Changes stay in this browser on this device. Everyone testing has separate demo records.
+All accounts, bookings and receipts are test data. Use sample information only.
+
+Keep the files and the assets folder together. Open index.html after extraction,
+rather than opening it inside the ZIP.
