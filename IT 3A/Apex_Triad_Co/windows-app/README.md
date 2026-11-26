@@ -39,6 +39,7 @@ adb reverse tcp:8787 tcp:8787
 
 Keep `CLINCH_API_URL=http://127.0.0.1:8787` with this reverse tunnel. `10.0.2.2` does not satisfy the demo server's loopback Host restriction. Windows uses the default loopback URL directly. For a shared local website + debug app, start **Start Clinch Shared Demo.cmd** in this folder and run this app with `flutter run -d windows --dart-define=CLINCH_API_URL=http://127.0.0.1:8788`. The backend, website, and connected-demo data are all under this folder's `backend` subfolder. Use **View Connected Demo Login.cmd**, also in this folder, to retrieve the same generated credentials for both clients. The standalone browser demo's `1234` / `1234` credentials and `owner@clinch.local` account are not credentials for the connected API. Native login always sends `role: owner` and `client: native`, and server authorization remains mandatory.
 
+
 ## Live website sync (host PC)
 
 The live website is [clinch-demo.web.app](https://clinch-demo.web.app), backed by the Firebase project `clinch-demo`. The Windows app continues to use the local Node/SQLite API on port `8788`; a separate Node runner syncs that database with Firestore. It imports website sales into app history, sends app sales and app product changes to the website, mirrors bookings both ways, and refreshes app stock from the website's authoritative counts. Initial product and resource setup is a separate one-time step.
@@ -67,9 +68,8 @@ Run the following commands in **PowerShell** from the repository root unless a s
    ```powershell
    Set-Location .\windows-app\backend
    .\Start Clinch Shared Demo.cmd
-
-   or you can double click the file at explorer
    ```
+   or you can double click the file at explorer
 
    On a fresh host, the first start creates a local Owner login protected by Windows. Use `.\View Connected Demo Login.cmd` from the backend folder to view it. Do not copy the protected Owner credential file between PCs. If the connected database exists but `data\clinch-connected-demo-owner.xml` is missing, stop and contact the maintainer; the launcher intentionally will not reset that database.
 
@@ -132,7 +132,9 @@ Stop the live sync and local API with **Ctrl+C** in their respective windows. Th
 - Only accepted server receipts remove pending operations. Missing receipts, transport errors, conflicts and rejections preserve them. Retry reuses the original payload/ID. Booking conflicts support editing as a new operation; the old conflict remains until the owner explicitly discards it. Discard requires confirmation and never reverses a server sale; inspect server history first after an uncertain response.
 - Queued intent is bound to both API origin and Owner identity. A different configuration or owner cannot claim it. Restore the original configuration and sign in as the original owner for recovery. A new database at the identical origin is an operational restore concern: preserve the server's idempotency database and do not reuse an origin for an unrelated business.
 - Logout is blocked while any pending change exists. Offline account creation, employee management and booking status changes are unavailable. An expired or revoked session does not erase snapshot, outbox or encryption key.
+
 - Live website syncing is handled by the separate runner described above; it is not the app's 45-second API sync or the terminal-pairing flow.
+
 
 ## Local data security
 

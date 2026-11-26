@@ -20,7 +20,11 @@ service-account*.json
 # Windows build output (share these as a GitHub Release instead)
 *.exe
 *.dll
+
 *.log
 
 windows-app/backend/data/
 windows-app/windows/flutter/ephemeral/
+
+*.log
+

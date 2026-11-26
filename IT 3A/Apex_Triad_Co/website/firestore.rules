@@ -1,0 +1,63 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function role() { return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role; }
+    function isOwner() { return signedIn() && role() == 'owner'; }
+    function isStaff() { return signedIn() && role() in ['owner', 'employee']; }
+
+    match /users/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || isOwner());
+      allow create: if (request.auth.uid == uid
+                        && request.resource.data.role == 'customer'
+                        && request.resource.data.active == true)
+                    || (isOwner() && request.resource.data.role == 'employee');
+      allow update: if isOwner()
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['active']);
+    }
+
+    match /resources/{id} { allow read: if signedIn(); allow write: if isOwner(); }
+    match /jobs/{id}      { allow read: if signedIn(); allow write: if isOwner(); }
+
+    match /products/{id} {
+      allow read: if signedIn();
+      allow create, delete: if isOwner();
+      allow update: if isOwner()
+                    || (isStaff() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock']));
+    }
+
+    match /bookings/{id} {
+      allow read: if isStaff() || resource.data.customerId == request.auth.uid;
+      allow create: if signedIn()
+                    && (isStaff() || request.resource.data.customerId == request.auth.uid);
+      allow update: if isStaff();
+    }
+
+    match /slotLocks/{id} { allow read, write: if signedIn(); }
+
+    match /sales/{id} {
+      allow read, create: if isStaff();
+    }
+
+    match /operations/{id} {
+      allow get: if signedIn();
+      allow create: if signedIn() && request.resource.data.userId == request.auth.uid;
+    }
+
+    match /applications/{id} {
+      allow get: if isOwner() || resource == null || resource.data.customerId == request.auth.uid;
+      allow list: if isOwner() || resource.data.customerId == request.auth.uid;
+      allow create: if signedIn() && request.resource.data.customerId == request.auth.uid;
+    }
+
+    match /audit/{id} {
+      allow read: if isOwner();
+      allow create: if signedIn() && request.resource.data.userId == request.auth.uid;
+    }
+
+    match /terminalReviews/{id} {
+      allow create: if isStaff();
+      allow read, update: if isOwner();
+    }
+  }
+}
