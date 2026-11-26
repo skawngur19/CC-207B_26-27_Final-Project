@@ -62,6 +62,9 @@ export async function createService({dbPath='data/clinch.sqlite',ownerPassword,o
     CREATE TABLE IF NOT EXISTS bookings(id TEXT PRIMARY KEY,reference TEXT NOT NULL UNIQUE,resourceId TEXT NOT NULL REFERENCES resources(id),customerId TEXT REFERENCES users(id),customerName TEXT NOT NULL,date TEXT NOT NULL,startHour INTEGER NOT NULL,endHour INTEGER NOT NULL,total INTEGER NOT NULL CHECK(total>=0),status TEXT NOT NULL,paid INTEGER NOT NULL DEFAULT 0,version INTEGER NOT NULL DEFAULT 1);
     CREATE INDEX IF NOT EXISTS booking_overlap ON bookings(resourceId,date,startHour,endHour);
     CREATE TABLE IF NOT EXISTS products(id TEXT PRIMARY KEY,name TEXT NOT NULL,category TEXT NOT NULL,price INTEGER NOT NULL CHECK(price>=0),stock INTEGER NOT NULL CHECK(stock>=0),version INTEGER NOT NULL DEFAULT 1);
+
+    CREATE TABLE IF NOT EXISTS product_change_journal(seq INTEGER PRIMARY KEY AUTOINCREMENT,productId TEXT NOT NULL,data TEXT NOT NULL);
+
     CREATE TABLE IF NOT EXISTS sales(id TEXT PRIMARY KEY,reference TEXT NOT NULL UNIQUE,total INTEGER NOT NULL CHECK(total>=0),tendered INTEGER NOT NULL,change INTEGER NOT NULL,method TEXT NOT NULL,createdAt TEXT NOT NULL,items TEXT NOT NULL,staffId TEXT NOT NULL REFERENCES users(id));
     CREATE TRIGGER IF NOT EXISTS sales_immutable_update BEFORE UPDATE ON sales BEGIN SELECT RAISE(ABORT,'sales are immutable'); END;
     CREATE TRIGGER IF NOT EXISTS sales_immutable_delete BEFORE DELETE ON sales BEGIN SELECT RAISE(ABORT,'sales are immutable'); END;
@@ -81,6 +84,9 @@ export async function createService({dbPath='data/clinch.sqlite',ownerPassword,o
     catch(error){db.exec(nested?'ROLLBACK TO nested_sale; RELEASE nested_sale':'ROLLBACK');throw error;}
   };
   const audit=(actor,action,detail)=>run('INSERT INTO audit VALUES(?,?,?,?,?,?)',randomUUID(),actor.id,actor.name,action,detail,stamp());
+
+  const recordProductChange=(id,data)=>run('INSERT INTO product_change_journal(productId,data) VALUES(?,?)',id,JSON.stringify(data));
+
   const bump=()=>run("UPDATE meta SET value=CAST(value AS INTEGER)+1 WHERE key='revision'");
   const provider=identity?'firebase':'local';
   const storedProvider=get("SELECT value FROM meta WHERE key='authProvider'")?.value;
@@ -249,7 +255,13 @@ export async function createService({dbPath='data/clinch.sqlite',ownerPassword,o
       requireRole(user,'owner');
       return receipt(user,'product.create',input,payload=>{
         const id=randomUUID();
+
+        const [name,category,price,stock]=catalogFields(payload);
+        run('INSERT INTO products(id,name,category,price,stock) VALUES(?,?,?,?,?)',id,name,category,price,stock);
+        recordProductChange(id,{id,name,category,price,stock});
+
         run('INSERT INTO products(id,name,category,price,stock) VALUES(?,?,?,?,?)',id,...catalogFields(payload));
+
         audit(user,'product.create',id);
         return get('SELECT * FROM products WHERE id=?',id);
       });
@@ -257,10 +269,20 @@ export async function createService({dbPath='data/clinch.sqlite',ownerPassword,o
     updateProduct(user,id,input) {
       requireRole(user,'owner');const fields=catalogFields(input),version=int(input.version,'Version',1,Number.MAX_SAFE_INTEGER);
       return transaction(()=>{
+
+        const prior=get('SELECT id,name,category,price,stock FROM products WHERE id=?',id);
+        if(!prior)fail(404,'NOT_FOUND','Product was not found.');
+        const updated=run('UPDATE products SET name=?,category=?,price=?,stock=?,version=version+1 WHERE id=? AND version=?',...fields,id,version);
+        if(!updated.changes)fail(409,'STALE_VERSION','Stock or price changed. Refresh before editing this product.');
+        const data=Object.fromEntries(['name','category','price','stock']
+          .flatMap((key,index)=>prior[key]===fields[index]?[]:[[key,fields[index]]]));
+        if(Object.keys(data).length)recordProductChange(id,data);
+
         const prior=get('SELECT id FROM products WHERE id=?',id);
         if(!prior)fail(404,'NOT_FOUND','Product was not found.');
         const updated=run('UPDATE products SET name=?,category=?,price=?,stock=?,version=version+1 WHERE id=? AND version=?',...fields,id,version);
         if(!updated.changes)fail(409,'STALE_VERSION','Stock or price changed. Refresh before editing this product.');
+
         audit(user,'product.update',id);bump();
         return get('SELECT * FROM products WHERE id=?',id);
       });
